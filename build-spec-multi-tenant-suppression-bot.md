@@ -625,7 +625,9 @@ partial-failure simulation via disabled key (20s) → code/README tour (15s). Li
 
 ## To Verify Before Building
 
-- [x] Slack free tier supports Socket Mode (confirmed).
+- [x] Slack free tier supports Socket Mode and custom apps (confirmed 2026-06: free plan
+  allows up to 10 third-party/custom app installs — "unlimited apps" is the paid feature.
+  New workspaces show a Pro-trial upsell banner; one custom bot is fine after downgrade).
 - [x] Mailgun free plan: no credit card, sandbox domain + private API key available
   immediately, no onboarding vetting gate (confirmed via Mailgun help center, 2026-06).
 - [x] Mailgun unsubscribes endpoint set verified against documentation.mailgun.com (2026-06).
