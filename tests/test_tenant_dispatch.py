@@ -10,23 +10,6 @@ from src.tenant_dispatch import dispatch_suppression
 EMAIL = "test+1@example.com"
 
 
-def make_tenant(name: str, domain: str) -> Tenant:
-    return Tenant(
-        name=name,
-        display_name=name.title(),
-        provider="mailgun",
-        domain=domain,
-        api_key_env_var=f"{name.upper()}_MAILGUN_API_KEY",
-    )
-
-
-@pytest.fixture
-def two_tenants(monkeypatch: pytest.MonkeyPatch) -> list[Tenant]:
-    monkeypatch.setenv("BRAND_A_MAILGUN_API_KEY", "key-a")
-    monkeypatch.setenv("BRAND_B_MAILGUN_API_KEY", "key-b")
-    return [make_tenant("brand_a", "mg.brand-a.com"), make_tenant("brand_b", "mg.brand-b.com")]
-
-
 @respx.mock
 def test_dispatch_suppression_returns_success_outcome_per_tenant(
     two_tenants: list[Tenant],

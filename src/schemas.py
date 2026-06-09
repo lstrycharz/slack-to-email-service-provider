@@ -12,6 +12,15 @@ class TenantOutcome(BaseModel):
     error_message: str | None = None
 
 
+class SuppressionResult(BaseModel):
+    """Outcome of one email's suppression run across all tenants."""
+
+    email: str
+    audit_id: str
+    status: Literal["success", "partial", "failure"]
+    outcomes: dict[str, TenantOutcome]
+
+
 class AuditRecord(BaseModel):
     """One row of the suppression audit trail."""
 
