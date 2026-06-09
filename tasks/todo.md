@@ -20,10 +20,12 @@ Blocked on Phase 0 (manual, see spec): Slack workspace EXISTS — still needed: 
 Mailgun free account (private API key + sandbox domain name), fill `.env` + `tenants.toml`.
 
 ## Steps (each red → green → commit)
-- [ ] `email_parser.extract_emails()` — happy path only
-- [ ] `mailgun_client.add_suppression()` — happy path + timeout (respx)
-- [ ] `tenant_dispatch` — minimal N-tenant loop
-- [ ] `audit` — pending→complete row, schema on first connect
-- [ ] `core.process_message()` — happy path
-- [ ] `slack_handlers` message shell + `main.py` Socket Mode wiring
+- [x] `email_parser.extract_emails()` — happy path only (6d6470e)
+- [x] `mailgun_client.add_suppression()` — happy path + timeout (d9b1b75)
+- [x] `tenant_dispatch` — minimal N-tenant loop (20f48a9)
+- [x] `audit` — pending→complete row, schema on first connect (f53b1a3)
+- [x] `core.process_message()` — happy path (dfc6cd5)
+- [x] `slack_handlers` message shell + `main.py` Socket Mode wiring (4785aa6)
 - [ ] LIVE exit criterion: post test+1@example.com → ✅ reply → visible in Mailgun suppressions → audit row queryable
+      (waits on user's Phase 0: Slack app tokens + Mailgun account; smoke check passed —
+      `python -m src.main` fails cleanly naming missing env vars)

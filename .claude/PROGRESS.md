@@ -9,7 +9,11 @@
   100% cov, mypy strict clean) — commit 12899ab
 
 ## In Progress
-- Nothing mid-flight. Working tree clean at 12899ab.
+- Phase 2 tracer bullet: ALL CODE DONE (6 red-green chunks, 6d6470e..4785aa6, 47 tests,
+  ruff+mypy-strict clean). Only the LIVE exit criterion remains — blocked on Phase 0
+  credentials. Once `.env` + `tenants.toml` exist: run `.venv/bin/python -m src.main`,
+  post test+1@example.com in the channel, verify ✅ reply + Mailgun suppressions page +
+  audit row.
 
 ## Blocked
 - Phase 2 live exit criterion needs the rest of Phase 0 (user, manual): Slack workspace
