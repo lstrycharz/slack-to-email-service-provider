@@ -12,6 +12,22 @@ class TenantOutcome(BaseModel):
     error_message: str | None = None
 
 
+class AuditRecord(BaseModel):
+    """One row of the suppression audit trail."""
+
+    audit_id: str
+    created_at: str
+    status: Literal["pending", "complete"]
+    action: Literal["add", "remove"]
+    email_hash: str
+    email_display: str
+    slack_user_id: str | None
+    slack_channel_id: str
+    slack_message_ts: str
+    tenant_outcomes: dict[str, TenantOutcome] | None = None
+    rollback_of: str | None = None
+
+
 class Tenant(BaseModel):
     """One ESP account the bot dispatches suppressions to.
 
