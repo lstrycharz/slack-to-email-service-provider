@@ -1,25 +1,29 @@
-# Phase 1 — Scaffold
+# Phase 1 — Scaffold ✅ COMPLETE
 
 ## Done when
-- [ ] Amended spec committed as `build-spec-multi-tenant-suppression-bot.md`
-- [ ] `pip install -e .[dev]` succeeds in a Python 3.11 venv
-- [ ] `pytest` runs green (config loader tests, written red-first)
-- [ ] `ruff check src/` and `mypy src/` pass clean
-- [ ] `.env.example`, `tenants.example.toml`, gitleaks pre-commit hook in place; `.gitignore` covers `.env`, `*.db`, `data/`, `tenants.toml`
-- [ ] `.claude/CLAUDE.md` placeholder sections populated; everything committed as save points
+- [x] Amended spec committed as `build-spec-multi-tenant-suppression-bot.md`
+- [x] `pip install -e .[dev]` succeeds in a Python 3.11 venv
+- [x] `pytest` runs green (config loader tests, written red-first — 12 passed, 100% cov)
+- [x] `ruff check src/` and `mypy src/` pass clean
+- [x] `.env.example`, `tenants.example.toml`, gitleaks pre-commit hook in place; `.gitignore` covers `.env`, `*.db`, `data/`, `tenants.toml`
+- [x] `.claude/CLAUDE.md` placeholder sections populated; everything committed as save points
 
-## Steps
-- [x] Write amended spec into repo
-- [ ] Extend .gitignore (data/, *.db, tenants.toml)
-- [ ] pyproject.toml with current pinned deps + build-system
-- [ ] Directory tree + stub modules + stub test files
-- [ ] .env.example, tenants.example.toml, .githooks/pre-commit (gitleaks)
-- [ ] venv (python3.11) + pip install -e .[dev]
-- [ ] RED: tests/test_config.py (Settings + load_tenants) — confirm failing
-- [ ] GREEN: src/config.py + src/schemas.py Tenant model — tests pass
-- [ ] ruff + mypy clean
-- [ ] Populate .claude/CLAUDE.md (Tech Stack, Commands, Structure, Rules, Session Start)
-- [ ] Commits: spec → scaffold → config TDD → CLAUDE.md
+## Review
+Three save-point commits: spec v2 (aa45e2d) → scaffold (262b56c) → config TDD (12899ab).
+Red step verified (ImportError before implementation). gitleaks hook active via
+`core.hooksPath .githooks` and scanned all three commits.
 
-## Next up (later phases)
-Phase 2 tracer bullet (needs Phase 0 manual setup: Slack workspace + SendGrid account → tokens in .env).
+# Phase 2 — Tracer bullet (NEXT)
+
+Blocked on Phase 0 (manual, ~15 min, see spec): create test Slack workspace + app
+(Socket Mode, scopes: channels:history, chat:write, reactions:read, reactions:write),
+SendGrid free-tier key (Suppressions Full Access), fill `.env` + `tenants.toml`.
+
+## Steps (each red → green → commit)
+- [ ] `email_parser.extract_emails()` — happy path only
+- [ ] `sendgrid_client.add_suppression()` — happy path + timeout (respx)
+- [ ] `tenant_dispatch` — minimal N-tenant loop
+- [ ] `audit` — pending→complete row, schema on first connect
+- [ ] `core.process_message()` — happy path
+- [ ] `slack_handlers` message shell + `main.py` Socket Mode wiring
+- [ ] LIVE exit criterion: post test+1@example.com → ✅ reply → visible in SendGrid → audit row queryable
