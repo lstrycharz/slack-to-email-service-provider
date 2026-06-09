@@ -5,6 +5,13 @@ from typing import Literal
 from pydantic import BaseModel
 
 
+class TenantOutcome(BaseModel):
+    """Result of one tenant's suppression call."""
+
+    status: Literal["success", "failure"]
+    error_message: str | None = None
+
+
 class Tenant(BaseModel):
     """One ESP account the bot dispatches suppressions to.
 
