@@ -1,14 +1,17 @@
 # Tenant topology lives here; secrets live in env vars referenced by api_key_env_var.
+# Mailgun suppression lists are per-domain — each tenant names its domain.
 # Copy to tenants.toml (gitignored) and adjust.
 
 [[tenants]]
 name = "brand_a"
 display_name = "Brand A"
-provider = "sendgrid"
-api_key_env_var = "BRAND_A_SENDGRID_API_KEY"
+provider = "mailgun"
+domain = "mg.brand-a.com"
+api_key_env_var = "BRAND_A_MAILGUN_API_KEY"
 
 [[tenants]]
 name = "brand_b"
 display_name = "Brand B"
-provider = "sendgrid"
-api_key_env_var = "BRAND_B_SENDGRID_API_KEY"
+provider = "mailgun"
+domain = "mg.brand-b.com"
+api_key_env_var = "BRAND_B_MAILGUN_API_KEY"

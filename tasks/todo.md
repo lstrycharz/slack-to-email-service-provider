@@ -15,15 +15,15 @@ Red step verified (ImportError before implementation). gitleaks hook active via
 
 # Phase 2 — Tracer bullet (NEXT)
 
-Blocked on Phase 0 (manual, ~15 min, see spec): create test Slack workspace + app
+Blocked on Phase 0 (manual, see spec): Slack workspace EXISTS — still needed: Slack app
 (Socket Mode, scopes: channels:history, chat:write, reactions:read, reactions:write),
-SendGrid free-tier key (Suppressions Full Access), fill `.env` + `tenants.toml`.
+Mailgun free account (private API key + sandbox domain name), fill `.env` + `tenants.toml`.
 
 ## Steps (each red → green → commit)
 - [ ] `email_parser.extract_emails()` — happy path only
-- [ ] `sendgrid_client.add_suppression()` — happy path + timeout (respx)
+- [ ] `mailgun_client.add_suppression()` — happy path + timeout (respx)
 - [ ] `tenant_dispatch` — minimal N-tenant loop
 - [ ] `audit` — pending→complete row, schema on first connect
 - [ ] `core.process_message()` — happy path
 - [ ] `slack_handlers` message shell + `main.py` Socket Mode wiring
-- [ ] LIVE exit criterion: post test+1@example.com → ✅ reply → visible in SendGrid → audit row queryable
+- [ ] LIVE exit criterion: post test+1@example.com → ✅ reply → visible in Mailgun suppressions → audit row queryable

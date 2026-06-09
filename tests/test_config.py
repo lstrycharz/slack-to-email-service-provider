@@ -18,14 +18,16 @@ VALID_TENANTS_TOML = """\
 [[tenants]]
 name = "brand_a"
 display_name = "Brand A"
-provider = "sendgrid"
-api_key_env_var = "BRAND_A_SENDGRID_API_KEY"
+provider = "mailgun"
+domain = "mg.brand-a.com"
+api_key_env_var = "BRAND_A_MAILGUN_API_KEY"
 
 [[tenants]]
 name = "brand_b"
 display_name = "Brand B"
-provider = "sendgrid"
-api_key_env_var = "BRAND_B_SENDGRID_API_KEY"
+provider = "mailgun"
+domain = "mg.brand-b.com"
+api_key_env_var = "BRAND_B_MAILGUN_API_KEY"
 """
 
 
@@ -81,8 +83,9 @@ def test_load_tenants_parses_all_tenant_fields(tmp_path: Path) -> None:
     assert tenants[0] == Tenant(
         name="brand_a",
         display_name="Brand A",
-        provider="sendgrid",
-        api_key_env_var="BRAND_A_SENDGRID_API_KEY",
+        provider="mailgun",
+        domain="mg.brand-a.com",
+        api_key_env_var="BRAND_A_MAILGUN_API_KEY",
     )
 
 
@@ -103,9 +106,15 @@ def test_load_tenants_duplicate_names_raises(tmp_path: Path) -> None:
 
 
 def test_load_tenants_unknown_provider_raises(tmp_path: Path) -> None:
-    bad_provider = VALID_TENANTS_TOML.replace('provider = "sendgrid"', 'provider = "mailgun"', 1)
+    bad_provider = VALID_TENANTS_TOML.replace('provider = "mailgun"', 'provider = "sendgrid"', 1)
     with pytest.raises(TenantConfigError, match="Invalid tenant"):
         load_tenants(write_toml(tmp_path, bad_provider))
+
+
+def test_load_tenants_missing_domain_raises(tmp_path: Path) -> None:
+    missing_domain = VALID_TENANTS_TOML.replace('domain = "mg.brand-a.com"\n', "", 1)
+    with pytest.raises(TenantConfigError, match="Invalid tenant"):
+        load_tenants(write_toml(tmp_path, missing_domain))
 
 
 def test_load_tenants_missing_field_raises(tmp_path: Path) -> None:

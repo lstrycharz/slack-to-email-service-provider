@@ -1,10 +1,11 @@
 # Build Spec: Multi-Tenant Suppression Bot
 
-> **Revision note**: This is the amended spec (v2, 2026-06-09). It incorporates a pre-build
+> **Revision note**: This is the amended spec (v2.1, 2026-06-09). v2 incorporated a pre-build
 > review that fixed two critical logic gaps (rollback email recovery, rollback of pre-existing
 > suppressions), restructured the build sequence into a tracer-bullet vertical slice, made the
 > functional-core/imperative-shell architecture explicit, and removed unneeded dependencies
-> and scripts. Review findings are folded in inline; the changelog is at the bottom.
+> and scripts. v2.1 pivots the ESP from SendGrid to Mailgun after SendGrid's onboarding
+> compliance review declined the free-tier account. Changelog at the bottom.
 
 ## Overview
 
@@ -15,7 +16,7 @@ confirmation back to Slack.
 
 **This is a working prototype** built to demonstrate the architectural pattern for
 compliance-driven multi-tenant marketing operations. The deployment in this repository runs
-against a personal Slack workspace and a free-tier SendGrid account using synthetic test data.
+against a personal Slack workspace and a free-tier Mailgun account using synthetic test data.
 The pattern is directly applicable to any organization running marketing communications across
 multiple ESP accounts or brands where regulated suppression workflows (self-exclusion, GDPR
 erasure requests, unsubscribe propagation) must complete reliably and quickly.
@@ -28,7 +29,7 @@ automation, compliance-window reduction, and a defensible audit trail.
 This repository contains a fully working prototype. The README, code, and demo video reflect
 what's actually true:
 
-- **Working in test environment**: Personal Slack workspace + SendGrid free tier + synthetic
+- **Working in test environment**: Personal Slack workspace + Mailgun free tier + synthetic
   emails. End-to-end flow demonstrated.
 - **Not deployed at any employer**: The architectural pattern is designed to be
   deployment-ready, but no production deployment exists. Production deployment at a real
@@ -76,9 +77,9 @@ For each email found:
         │
         ├─► Write PENDING audit row (audit_id, hashed email, requester)
         │
-        ├─► For each configured tenant, in parallel:
-        │       GET  /v3/asm/suppressions/global/{email}   (record was_already_suppressed)
-        │       POST /v3/asm/suppressions/global
+        ├─► For each configured tenant (= Mailgun domain), in parallel:
+        │       GET  /v3/{domain}/unsubscribes/{email}   (record was_already_suppressed)
+        │       POST /v3/{domain}/unsubscribes
         │           │
         │           └─► Success / Failure recorded per tenant
         │
@@ -98,7 +99,7 @@ If the ORIGINAL REQUESTER reacts with ❌ within ROLLBACK_WINDOW_SECONDS:
         ├─► Fetch bot reply via conversations.replies(include_all_metadata=True),
         │     read {audit_id, email} from message metadata
         ├─► Reject if: not requester / window expired / rollback already exists
-        ├─► DELETE /v3/asm/suppressions/global/{email} for each tenant where the
+        ├─► DELETE /v3/{domain}/unsubscribes/{email} for each tenant where the
         │     original succeeded AND was_already_suppressed is false
         ├─► Audit write (rollback record linked to original audit_id)
         └─► Slack reply: "Rolled back across [tenants]. Audit: <new-id> (rollback of abc123)."
@@ -110,6 +111,7 @@ If the ORIGINAL REQUESTER reacts with ❌ within ROLLBACK_WINDOW_SECONDS:
 |-----------|--------|-----------|
 | Language | Python 3.11+ | Operator's primary language; rich Slack + HTTP ecosystem |
 | Slack framework | `slack-bolt` v1.x with Socket Mode | Outbound WebSocket = no public endpoint, simpler IT/deployment story |
+| ESP | Mailgun (free tier) | No signup vetting gate (SendGrid declined the account); per-domain suppression lists map tenant = domain; instantly usable sandbox domain |
 | HTTP client | `httpx` (sync) | Modern, well-typed, timeouts enforced |
 | Config | `pydantic-settings` + stdlib `tomllib` | Loads from .env + tenants.toml, validates at startup, type-safe |
 | Tenant configuration | TOML file (`tenants.toml`) | Lists configured ESP accounts; easier than env vars for N-tenant cases |
@@ -141,7 +143,7 @@ Slack2ESP/
 │   ├── config.py              # pydantic-settings model for env vars + TOML tenant loader
 │   ├── schemas.py             # Pydantic models: Tenant, TenantOutcome, SuppressionResult, RollbackResult
 │   ├── email_parser.py        # Bounded regex extraction, lowercasing, dedup
-│   ├── sendgrid_client.py     # Thin httpx wrapper: add/remove/check suppression
+│   ├── mailgun_client.py      # Thin httpx wrapper: add/remove/check suppression
 │   ├── tenant_dispatch.py     # Per-tenant parallel dispatcher with per-tenant outcome tracking
 │   ├── audit.py               # SQLite audit log; owns its schema (created on first connect)
 │   ├── core.py                # FUNCTIONAL CORE: process_message(), process_rollback()
@@ -151,12 +153,12 @@ Slack2ESP/
 │   ├── conftest.py            # Shared fixtures (tmp SQLite, sample tenants, respx router)
 │   ├── test_config.py
 │   ├── test_email_parser.py
-│   ├── test_sendgrid_client.py
+│   ├── test_mailgun_client.py
 │   ├── test_tenant_dispatch.py
 │   ├── test_audit.py
 │   ├── test_core.py           # The bulk of behavior tests live here
 │   ├── test_slack_handlers.py # Thin: event translation + reply posting only
-│   └── test_integration.py    # Full flow with mocked Slack + mocked SendGrid
+│   └── test_integration.py    # Full flow with mocked Slack + mocked Mailgun
 ├── data/
 │   └── audit.db               # SQLite file (gitignored; dir kept via .gitkeep)
 └── scripts/
@@ -244,25 +246,31 @@ unwieldy at N>2. The file lists each ESP account the bot dispatches to.
 [[tenants]]
 name = "brand_a"
 display_name = "Brand A"
-provider = "sendgrid"
-api_key_env_var = "BRAND_A_SENDGRID_API_KEY"
+provider = "mailgun"
+domain = "mg.brand-a.com"
+api_key_env_var = "BRAND_A_MAILGUN_API_KEY"
 
 [[tenants]]
 name = "brand_b"
 display_name = "Brand B"
-provider = "sendgrid"
-api_key_env_var = "BRAND_B_SENDGRID_API_KEY"
+provider = "mailgun"
+domain = "mg.brand-b.com"
+api_key_env_var = "BRAND_B_MAILGUN_API_KEY"
 ```
 
 The real `tenants.toml` is gitignored (one canonical name — there is no `tenants.local.toml`).
 API keys themselves live in env vars referenced by `api_key_env_var`. This separation means:
 tenant *topology* in config, *secrets* in env. Cleaner for multi-environment setups.
 
+Mailgun suppression lists are **per-domain**, so each tenant carries its `domain` — this is a
+more realistic multi-tenant model than an account-level list: in production, brand = sending
+domain = suppression list.
+
 For the **prototype phase**, a minimum valid config is one tenant. The dispatcher code is
 N-tenant from the start; the prototype just happens to run with N=1. To demonstrate the
-multi-tenant case without a second SendGrid account, add a second tenant entry pointing to the
-same SendGrid key, and document it in the demo as: "In production, each tenant has its own
-credentials; this demo uses one account simulated as two for cost reasons."
+multi-tenant case without a second Mailgun account, add a second tenant entry pointing to the
+same sandbox domain and key, and document it in the demo as: "In production, each tenant has
+its own domain and credentials; this demo uses one sandbox simulated as two for cost reasons."
 
 ## Phase 0 Test Infrastructure Setup
 
@@ -282,44 +290,63 @@ credentials; this demo uses one account simulated as two for cost reasons."
 7. Invite the bot: `/invite @Suppression Bot Dev` in the channel.
 8. Channel ID: right-click channel → View channel details → bottom.
 
-**Test SendGrid account:**
+**Test Mailgun account:**
 
-1. sendgrid.com → free tier signup (no credit card). Verify email + sender identity.
-2. Settings → API Keys → Create API Key → "Restricted Access" → grant **Suppressions: Full
-   Access** only. Copy the key (`SG.`-prefixed).
+1. mailgun.com → sign up for the free plan (no credit card, no vetting gate — the account is
+   usable immediately).
+2. Your **sandbox domain** (`sandboxXXXX...mailgun.org`) is auto-provisioned. Copy its full
+   name — it goes in `tenants.toml` as `domain`.
+3. Dashboard → API Keys (or Settings → API Security) → copy the **private API key**.
+   Free-plan keys are admin-scoped (restricted keys are a paid feature) — acceptable for a
+   test account holding only synthetic data.
+
+Note: the free plan's "authorized recipients" limit applies to *sending* only. This bot never
+sends — it manages suppression lists — so the limit doesn't constrain the demo.
+
+> History: the project originally targeted SendGrid; their onboarding compliance review
+> declined the free-tier account ("unable to provide the specifics of our vetting process").
+> Mailgun has no such gate. The pivot cost one config field (`domain`) and one thin client
+> module — which is itself a useful demo point about the architecture.
 
 **Test emails:** `test+1@example.com`, `test+2@example.com`, … — syntactically valid, never
 deliverable, conventional test pattern. The bot adds to suppression lists; it never sends mail.
 
 **Local environment:** copy `.env.example` to `.env`, fill in `SLACK_BOT_TOKEN`,
-`SLACK_APP_TOKEN`, `SLACK_CHANNEL_ID`, and the SendGrid key env var referenced from
+`SLACK_APP_TOKEN`, `SLACK_CHANNEL_ID`, and the Mailgun key env var referenced from
 `tenants.toml`. Single-tenant prototype `tenants.toml`:
 
 ```toml
 [[tenants]]
 name = "test_brand"
 display_name = "Test Brand"
-provider = "sendgrid"
-api_key_env_var = "TEST_BRAND_SENDGRID_API_KEY"
+provider = "mailgun"
+domain = "sandboxXXXXXXXXXXXXXXXX.mailgun.org"
+api_key_env_var = "TEST_BRAND_MAILGUN_API_KEY"
 ```
 
-## SendGrid API Reference (verified against docs.sendgrid.com, 2026-06)
+## Mailgun API Reference (endpoints verified against documentation.mailgun.com, 2026-06)
 
-**Add to global suppression** (per account):
-- `POST https://api.sendgrid.com/v3/asm/suppressions/global`
-- Header: `Authorization: Bearer {api_key}`
-- Body: `{"recipient_emails": ["test@example.com"]}`
-- Success: `201 Created` with `{"recipient_emails": [...]}`
-- Idempotent: adding an already-suppressed email is a no-op (no error) — which is exactly why
-  the pre-check below exists.
+Suppression lists are per-domain; each tenant supplies its `domain`. Auth is HTTP Basic —
+username `api`, password = the private API key. Base URL `https://api.mailgun.net`
+(EU-region accounts use `https://api.eu.mailgun.net`; not needed for the prototype).
+
+**Add to unsubscribe suppression list** (per domain):
+- `POST https://api.mailgun.net/v3/{domain}/unsubscribes`
+- Form body: `address=test@example.com`
+- Success: `200 OK`
+- Adding an already-suppressed address updates the existing record (no error) — which is
+  exactly why the pre-check below exists.
 
 **Check suppression status** (runtime pre-check + healthcheck):
-- `GET https://api.sendgrid.com/v3/asm/suppressions/global/{email}`
-- Returns `{}` if not suppressed, `{"recipient_email": "..."}` if suppressed
+- `GET https://api.mailgun.net/v3/{domain}/unsubscribes/{email}`
+- `200` with the record if suppressed; `404` if not suppressed
 
-**Remove from global suppression** (rollback path):
-- `DELETE https://api.sendgrid.com/v3/asm/suppressions/global/{email}`
-- Success: `204 No Content`
+**Remove from unsubscribe list** (rollback path):
+- `DELETE https://api.mailgun.net/v3/{domain}/unsubscribes/{email}`
+- Success: `200 OK`
+
+> Exact status-code shapes (404-on-absent, response bodies) follow Mailgun's documented
+> behavior; the Phase 2 tracer bullet confirms them live before anything depends on them.
 
 ## Workflow Logic
 
@@ -384,20 +411,22 @@ wait dominates). Each `TenantOutcome` has `status` (success/failure), `was_alrea
 Parallel dispatch is the right pattern even for N=2: it minimizes the suppression window when
 one tenant's ESP is slow, and costs no meaningful complexity.
 
-## SendGrid Client (`src/sendgrid_client.py`)
+## Mailgun Client (`src/mailgun_client.py`)
 
-Thin wrapper around `httpx.Client`. Three methods: `add_suppression(api_key, email)`,
-`remove_suppression(api_key, email)`, `check_suppression(api_key, email) -> bool`. All:
+Thin wrapper around `httpx.Client`. Three methods: `add_suppression(api_key, domain, email)`,
+`remove_suppression(api_key, domain, email)`, `check_suppression(api_key, domain, email) ->
+bool`. All:
 
 - Use `httpx.Client(timeout=HTTP_TIMEOUT_SECONDS)`.
-- Set `Authorization: Bearer {api_key}`.
-- Catch `httpx.TimeoutException`, `httpx.HTTPError`, and non-2xx responses, raising a typed
-  `SendGridError` with status_code, truncated response body, and email_hash (never the raw
-  email or the key) in context.
+- HTTP Basic auth: `("api", api_key)`.
+- Catch `httpx.TimeoutException`, `httpx.HTTPError`, and unexpected statuses, raising a typed
+  `MailgunError` with status_code, truncated response body, and email_hash (never the raw
+  email or the key) in context. A `404` on the check endpoint is a value (not suppressed),
+  not an error.
 - Retry once on 5xx with 2-second backoff. No retry on 4xx.
 
-No official `sendgrid-python` SDK — the needed surface is three endpoints; a thin httpx
-wrapper is more maintainable and easier to test with respx.
+No official Mailgun SDK — the needed surface is three endpoints; a thin httpx wrapper is more
+maintainable and easier to test with respx.
 
 ## Audit Log (`src/audit.py`)
 
@@ -475,20 +504,21 @@ TDD'd), stub modules + test files. Done when: `pip install -e .[dev]`, `pytest`,
 
 The thinnest possible vertical slice, live-demoable at the end:
 - `email_parser.extract_emails()` — happy path only (one well-formed email).
-- `sendgrid_client.add_suppression()` — happy path + timeout (respx).
+- `mailgun_client.add_suppression()` — happy path + timeout (respx).
 - `tenant_dispatch` — sequential-equivalent minimal version over N tenants.
 - `audit` — minimal pending→complete row.
 - `core.process_message()` — happy path.
 - `slack_handlers` message shell + `main.py` Socket Mode wiring.
 
 **Exit criterion**: post `test+1@example.com` in the real test workspace → ✅ threaded reply →
-address visible in SendGrid dashboard → audit row queryable. (Requires Phase 0 done.)
+address visible in the Mailgun dashboard's suppressions page (or via the GET endpoint) →
+audit row queryable. (Requires Phase 0 done.)
 
 ### Phase 3: Dispatch depth
 
 - True parallel `ThreadPoolExecutor` dispatch with `duration_ms`.
 - GET pre-check → `was_already_suppressed` per tenant.
-- Retry-once-on-5xx, typed `SendGridError`, no-retry-on-4xx, key/email never in errors.
+- Retry-once-on-5xx, typed `MailgunError`, no-retry-on-4xx, key/email never in errors.
 - Partial-failure (⚠️) and all-failed (❌) reply tiers.
 - Pending→finalize audit ordering hardened (crash-window test).
 
@@ -505,8 +535,9 @@ address visible in SendGrid dashboard → audit row queryable. (Requires Phase 0
   ReDoS-shaped strings, no-email messages.
 - Subtype filtering tests (edits don't re-trigger), wrong-channel, thread replies.
 - `scripts/healthcheck.py`: Slack bot token → `auth.test`; app token →
-  `apps.connections.open`; each SendGrid key →
-  `GET /v3/asm/suppressions/global/healthcheck@example.invalid` (200 = valid key).
+  `apps.connections.open`; each tenant's Mailgun key+domain →
+  `GET /v3/{domain}/unsubscribes/healthcheck@example.invalid` (404 = key and domain valid;
+  401 = bad key; other = investigate).
 - `tests/test_integration.py`: full message→reply and reaction→rollback flows with mocked
   Slack client + respx.
 
@@ -568,7 +599,7 @@ pytest+respx]
 [Install, env setup, hook enable, run]
 
 ## Honest Deployment Status
-[Personal workspace + free-tier SendGrid + synthetic emails. What productionizing would
+[Personal workspace + free-tier Mailgun + synthetic emails. What productionizing would
 require. Built to prove the pattern before an internal deployment conversation.]
 
 ## Roadmap / What I'd Build Next
@@ -576,7 +607,7 @@ require. Built to prove the pattern before an internal deployment conversation.]
 - Per-tenant rate limiting
 - Slash command for suppression status lookup
 - Config-driven confirm-before-act mode for high-stakes contexts
-- Generic ESP adapter (Mailgun, Postmark) — deliberately not built at N=1
+- Generic ESP adapter (SendGrid, Postmark) — deliberately not built at N=1 providers
 - HRIS/IAM integration for rollback permissions
 
 ## Testing
@@ -589,17 +620,30 @@ MIT
 ### Demo Video Script
 
 2–3 minutes (Loom default): problem framing (15s) → architecture (20s) → live trigger +
-SendGrid dashboard proof (30s) → multi-tenant audit query (20s) → rollback flow (20s) →
+Mailgun suppressions-page proof (30s) → multi-tenant audit query (20s) → rollback flow (20s) →
 partial-failure simulation via disabled key (20s) → code/README tour (15s). Link in DEMO.md.
 
 ## To Verify Before Building
 
 - [x] Slack free tier supports Socket Mode (confirmed).
-- [x] SendGrid free tier grants Suppressions Full Access scope (confirmed via docs).
-- [x] SendGrid endpoint set verified against current Twilio docs (2026-06).
+- [x] Mailgun free plan: no credit card, sandbox domain + private API key available
+  immediately, no onboarding vetting gate (confirmed via Mailgun help center, 2026-06).
+- [x] Mailgun unsubscribes endpoint set verified against documentation.mailgun.com (2026-06).
+- [ ] Mailgun status-code shapes (404-on-absent, 200-on-delete) — confirmed live in Phase 2.
 - [ ] Slack message metadata round-trip — **live spike at Phase 4 start** (fallback documented).
 - [ ] Demo hosting: Loom (recommended default).
 - [ ] Repo visibility: private until README + DEMO are ready, then public.
+
+## Changelog (v2 → v2.1)
+
+- **Pivoted ESP: SendGrid → Mailgun.** SendGrid's onboarding compliance review declined the
+  free-tier account at signup (opaque vetting, no recourse). Mailgun has no vetting gate, an
+  instantly usable sandbox domain, and a 1:1 suppression-API mapping (add/check/remove).
+  Changes: `Tenant` gains a `domain` field (Mailgun suppression lists are per-domain — a more
+  realistic tenant model); auth is HTTP Basic `("api", key)` instead of Bearer;
+  `sendgrid_client.py` → `mailgun_client.py`; `SendGridError` → `MailgunError`; healthcheck
+  expects 404 (not 200) for a valid key. Architecture, dispatcher, audit, rollback logic:
+  unchanged.
 
 ## Changelog (v1 → v2)
 

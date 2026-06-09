@@ -6,9 +6,14 @@ from pydantic import BaseModel
 
 
 class Tenant(BaseModel):
-    """One ESP account the bot dispatches suppressions to."""
+    """One ESP account the bot dispatches suppressions to.
+
+    Mailgun suppression lists are per-domain, so each tenant carries the
+    domain its unsubscribe list lives under.
+    """
 
     name: str
     display_name: str
-    provider: Literal["sendgrid"]
+    provider: Literal["mailgun"]
+    domain: str
     api_key_env_var: str

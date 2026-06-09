@@ -16,7 +16,7 @@ Run the full test suite to orient yourself on project scope and current state. D
 ## Tech Stack
 - Python 3.11 (venv at `.venv`; interpreter `/opt/homebrew/bin/python3.11`)
 - slack-bolt (Socket Mode, sync) + slack-sdk
-- httpx (sync) for SendGrid; respx for HTTP mocking in tests
+- httpx (sync) for Mailgun (Basic auth, per-domain unsubscribe lists); respx for HTTP mocking in tests
 - pydantic / pydantic-settings (config), stdlib `tomllib` (tenants.toml), stdlib `sqlite3` (audit)
 - structlog (JSON logs); pytest + pytest-cov, ruff, mypy --strict
 
@@ -31,7 +31,7 @@ Run the full test suite to orient yourself on project scope and current state. D
 - `build-spec-multi-tenant-suppression-bot.md` — THE spec (v2, amended). Read before any phase work.
 - `src/core.py` — functional core (pure logic); `src/slack_handlers.py` — thin Bolt shell
 - `src/config.py` — Settings + tenants.toml loader; `src/schemas.py` — shared pydantic models
-- `src/sendgrid_client.py` / `src/tenant_dispatch.py` / `src/audit.py` — HTTP, parallel dispatch, SQLite audit
+- `src/mailgun_client.py` / `src/tenant_dispatch.py` / `src/audit.py` — HTTP, parallel dispatch, SQLite audit
 - `tests/` — one file per module; `scripts/` — healthcheck + demo report; `tasks/todo.md` — phase checklist
 
 ## Rules
@@ -54,7 +54,8 @@ Run the full test suite to orient yourself on project scope and current state. D
 - System `python3` is 3.9 — always use `.venv/bin/...`, never bare `python3`
 - pytest addopts include `--cov`; add `--no-cov` for quick single-test runs
 - Slack `message` events with a `subtype` (edits, joins, bot) must be ignored or edits re-trigger suppression
-- SendGrid add-suppression is an idempotent no-op — that's why outcomes record `was_already_suppressed`
+- Mailgun add-unsubscribe is an idempotent update (no error if already suppressed) — that's why outcomes record `was_already_suppressed`
+- Mailgun GET unsubscribe returns 404 for "not suppressed" — it's a value, not an error
 
 ## Core Principles
 - **Simplicity First**: Make every change as simple as possible. Impact minimal code.

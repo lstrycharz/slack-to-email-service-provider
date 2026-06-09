@@ -12,9 +12,12 @@
 - Nothing mid-flight. Working tree clean at 12899ab.
 
 ## Blocked
-- Phase 2 live exit criterion needs Phase 0 manual setup (user): Slack workspace + app
-  tokens, SendGrid free-tier key → `.env` + `tenants.toml`. Code work can start without it;
-  only the live demo check waits.
+- Phase 2 live exit criterion needs the rest of Phase 0 (user, manual): Slack workspace
+  EXISTS; still needed: Slack app + tokens, Mailgun free account (private key + sandbox
+  domain) → `.env` + `tenants.toml`. Code work can proceed without it; only the live demo
+  check waits.
+- ESP pivot note: SendGrid declined the account at onboarding vetting (2026-06-09, ticket
+  #27429538). Pivoted to Mailgun — spec v2.1.
 
 ## Next Up
 1. Phase 2 tracer bullet (see `tasks/todo.md` for chunk list) — minimal happy path,
