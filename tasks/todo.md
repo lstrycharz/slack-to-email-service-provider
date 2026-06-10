@@ -26,6 +26,16 @@ Mailgun free account (private API key + sandbox domain name), fill `.env` + `ten
 - [x] `audit` — pending→complete row, schema on first connect (f53b1a3)
 - [x] `core.process_message()` — happy path (dfc6cd5)
 - [x] `slack_handlers` message shell + `main.py` Socket Mode wiring (4785aa6)
-- [ ] LIVE exit criterion: post test+1@example.com → ✅ reply → visible in Mailgun suppressions → audit row queryable
-      (waits on user's Phase 0: Slack app tokens + Mailgun account; smoke check passed —
-      `python -m src.main` fails cleanly naming missing env vars)
+- [x] LIVE exit criterion MET 2026-06-10: posted test1@gmail.com in #suppression-requests →
+      ✅ threaded reply (audit bb923bbc-bb1f-43f8-a0d1-3f3367c80121) → address confirmed on
+      Mailgun suppression list (GET 200) → audit row complete with success outcome.
+      Live-confirmed along the way: Mailgun 404-on-absent, idempotent re-add, and the
+      pending-before-dispatch invariant surviving a mid-flow crash (missing-scope reply
+      failure left audit + ESP state consistent).
+
+# Phase 3 — Dispatch depth (NEXT)
+- [ ] Parallel ThreadPoolExecutor dispatch + duration_ms
+- [ ] GET pre-check → was_already_suppressed per tenant
+- [ ] Retry-once-on-5xx; no retry on 4xx
+- [ ] Partial-failure (⚠️) and all-failed (❌) reply tiers exercised end-to-end
+- [ ] Pending→finalize crash-window test

@@ -9,11 +9,12 @@
   100% cov, mypy strict clean) — commit 12899ab
 
 ## In Progress
-- Phase 2 tracer bullet: ALL CODE DONE (6 red-green chunks, 6d6470e..4785aa6, 47 tests,
-  ruff+mypy-strict clean). Only the LIVE exit criterion remains — blocked on Phase 0
-  credentials. Once `.env` + `tenants.toml` exist: run `.venv/bin/python -m src.main`,
-  post test+1@example.com in the channel, verify ✅ reply + Mailgun suppressions page +
-  audit row.
+- Phase 2 COMPLETE incl. live exit criterion (2026-06-10): full Slack→Mailgun loop
+  demonstrated in test workspace; audit bb923bbc-... matches Slack reply; Mailgun GET 200.
+  Setup lessons captured (Event Subscriptions step, chat:write vs calls:write mis-click,
+  .env export bug fixed red-green).
+- CAUTION: confirmation replies promise ❌ rollback, but the reaction handler is Phase 4 —
+  not yet implemented. Until then a ❌ reaction does nothing.
 
 ## Blocked
 - Phase 2 live exit criterion needs the rest of Phase 0 (user, manual): Slack workspace
