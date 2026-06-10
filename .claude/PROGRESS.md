@@ -13,7 +13,8 @@
   loop demonstrated in the test workspace (add ecc402bd → ❌ reaction → rollback ac4847a3,
   Mailgun GET 404 confirms removal). Metadata spike passed; parallel dispatch proven by
   barrier test; live parser bug (stale mailto hrefs) fixed red-green.
-- Next: Phase 5 hardening (see tasks/todo.md), then Phase 6 README/demo video.
+- Phases 5 + 6 COMPLETE. Repo is PUBLIC: https://github.com/lstrycharz/slack-to-email-service-provider
+- Remaining (user): record demo video (script in DEMO.md), screenshots, ROTATE Mailgun key.
 - Demo-prep note: sandbox suppression list has leftover synthetic entries
   (test1, test3, est2@gmail.com) — clean or keep as demo data. Mailgun key should be
   ROTATED before any public demo (passed through chat in plaintext).
