@@ -17,6 +17,9 @@ def audit(tmp_path: Path) -> AuditLog:
 
 
 def mock_domain(domain: str, status_code: int = 200) -> None:
+    respx.route(method="GET", url__startswith=f"https://api.mailgun.net/v3/{domain}/").mock(
+        return_value=httpx.Response(404, json={})
+    )
     respx.post(f"https://api.mailgun.net/v3/{domain}/unsubscribes").mock(
         return_value=httpx.Response(status_code, json={"message": "ok"})
     )

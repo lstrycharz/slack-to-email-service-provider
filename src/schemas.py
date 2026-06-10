@@ -6,10 +6,18 @@ from pydantic import BaseModel
 
 
 class TenantOutcome(BaseModel):
-    """Result of one tenant's suppression call."""
+    """Result of one tenant's suppression call.
+
+    was_already_suppressed comes from the pre-dispatch GET check: True
+    means the address was on the list before we acted (rollback must skip
+    this tenant — we'd be removing a suppression we didn't create); None
+    means the pre-check itself failed and the prior state is unknown.
+    """
 
     status: Literal["success", "failure"]
     error_message: str | None = None
+    was_already_suppressed: bool | None = None
+    duration_ms: int | None = None
 
 
 class SuppressionResult(BaseModel):

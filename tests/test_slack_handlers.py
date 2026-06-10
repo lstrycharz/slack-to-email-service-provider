@@ -64,6 +64,9 @@ def handle(
 
 def mock_both_domains() -> None:
     for domain in ("mg.brand-a.com", "mg.brand-b.com"):
+        respx.route(
+            method="GET", url__startswith=f"https://api.mailgun.net/v3/{domain}/"
+        ).mock(return_value=httpx.Response(404, json={}))
         respx.post(f"https://api.mailgun.net/v3/{domain}/unsubscribes").mock(
             return_value=httpx.Response(200, json={"message": "ok"})
         )
