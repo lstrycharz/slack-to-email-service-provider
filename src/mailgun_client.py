@@ -88,6 +88,33 @@ def add_suppression(
         )
 
 
+def remove_suppression(
+    api_key: str, domain: str, email: str, timeout: float = 10.0, backoff_seconds: float = 2.0
+) -> None:
+    """Remove an address from the domain's unsubscribe suppression list.
+
+    Rollback path only — delivery to the address resumes after this.
+
+    Raises:
+        MailgunError: On timeout/network failure (after one retry) or any
+            non-200 response (5xx after one retry, 4xx immediately).
+    """
+    context = f"remove_suppression for email_hash={_email_hash(email)} on {domain}"
+    response = _request_with_retry(
+        "DELETE",
+        f"{BASE_URL}/v3/{domain}/unsubscribes/{email}",
+        api_key=api_key,
+        context=context,
+        timeout=timeout,
+        backoff_seconds=backoff_seconds,
+    )
+    if response.status_code != 200:
+        raise MailgunError(
+            f"{context}: unexpected status {response.status_code}",
+            status_code=response.status_code,
+        )
+
+
 def check_suppression(
     api_key: str, domain: str, email: str, timeout: float = 10.0, backoff_seconds: float = 2.0
 ) -> bool:

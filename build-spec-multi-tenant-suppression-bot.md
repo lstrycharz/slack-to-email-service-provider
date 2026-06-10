@@ -636,7 +636,9 @@ partial-failure simulation via disabled key (20s) → code/README tour (15s). Li
   immediately, no onboarding vetting gate (confirmed via Mailgun help center, 2026-06).
 - [x] Mailgun unsubscribes endpoint set verified against documentation.mailgun.com (2026-06).
 - [ ] Mailgun status-code shapes (404-on-absent, 200-on-delete) — confirmed live in Phase 2.
-- [ ] Slack message metadata round-trip — **live spike at Phase 4 start** (fallback documented).
+- [x] Slack message metadata round-trip — live spike PASSED 2026-06-10 (post with metadata →
+  conversations.replies(include_all_metadata=True) returned the full event_payload).
+  Fallback not needed.
 - [ ] Demo hosting: Loom (recommended default).
 - [ ] Repo visibility: private until README + DEMO are ready, then public.
 

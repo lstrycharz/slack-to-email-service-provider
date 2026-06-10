@@ -4,7 +4,12 @@ import httpx
 import pytest
 import respx
 
-from src.mailgun_client import MailgunError, add_suppression, check_suppression
+from src.mailgun_client import (
+    MailgunError,
+    add_suppression,
+    check_suppression,
+    remove_suppression,
+)
 
 DOMAIN = "mg.test-brand.com"
 ADD_URL = f"https://api.mailgun.net/v3/{DOMAIN}/unsubscribes"
@@ -71,6 +76,30 @@ def test_add_suppression_timeout_then_success_recovers() -> None:
     )
     add_suppression("key-123", DOMAIN, "test+1@example.com", backoff_seconds=0)
     assert route.call_count == 2
+
+
+@respx.mock
+def test_remove_suppression_deletes_address_endpoint() -> None:
+    route = respx.delete(CHECK_URL).mock(return_value=httpx.Response(200, json={"message": "ok"}))
+    remove_suppression("key-123", DOMAIN, "test+1@example.com")
+    assert route.called
+
+
+@respx.mock
+def test_remove_suppression_retries_once_on_5xx_then_succeeds() -> None:
+    route = respx.delete(CHECK_URL).mock(
+        side_effect=[httpx.Response(502), httpx.Response(200, json={"message": "ok"})]
+    )
+    remove_suppression("key-123", DOMAIN, "test+1@example.com", backoff_seconds=0)
+    assert route.call_count == 2
+
+
+@respx.mock
+def test_remove_suppression_unexpected_status_raises_without_email_in_message() -> None:
+    respx.delete(CHECK_URL).mock(return_value=httpx.Response(401, json={"message": "bad key"}))
+    with pytest.raises(MailgunError) as excinfo:
+        remove_suppression("key-123", DOMAIN, "test+1@example.com", backoff_seconds=0)
+    assert "test+1@example.com" not in str(excinfo.value)
 
 
 @respx.mock
