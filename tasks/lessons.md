@@ -1,5 +1,13 @@
 # Lessons
 
+## 2026-06-10 — Slack rich text: the href can lie; the label is the truth
+Editing a message draft around an auto-linked email left raw text
+`<mailto:test3@gmail.com|t><mailto:est2@gmail.com|est2@gmail.com>` while the user SAW
+"test2@gmail.com". Extracting from raw text suppressed two wrong addresses.
+**Rule**: for any Slack-text parsing, flatten `<href|label>` to the label first — parse what
+the human saw, never composer-internal state. More generally: test parsers against the
+platform's *rich/edited* representations, not just clean typed input.
+
 ## 2026-06-09 — Slack: scopes ≠ event subscriptions
 First live run received zero events despite valid tokens, correct scopes, and bot membership
 in the channel. Cause: Event Subscriptions (bot events `message.channels`, `reaction_added`)
