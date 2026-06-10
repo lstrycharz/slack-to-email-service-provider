@@ -1,5 +1,6 @@
-"""Tests for core.process_message and reply formatting — Phase 2 happy path."""
+"""Tests for core.process_message and reply formatting."""
 
+import sqlite3
 from pathlib import Path
 
 import httpx
@@ -91,6 +92,24 @@ def test_process_message_finalizes_audit_record(
     results = run("suppress test+1@example.com", two_tenants, audit)
     record = audit.get_action(results[0].audit_id)
     assert record is not None and record.status == "complete"
+
+
+def test_crash_during_dispatch_leaves_pending_audit_row(
+    two_tenants: list[Tenant], audit: AuditLog, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The audit invariant: the pending row is written BEFORE any ESP call,
+    # so even an unexpected crash mid-dispatch leaves a record of intent.
+    def boom(*args: object, **kwargs: object) -> dict[str, TenantOutcome]:
+        raise RuntimeError("simulated crash mid-dispatch")
+
+    monkeypatch.setattr("src.core.dispatch_suppression", boom)
+    with pytest.raises(RuntimeError):
+        run("suppress test+1@example.com", two_tenants, audit)
+    conn = sqlite3.connect(tmp_path / "audit.db")
+    count = conn.execute(
+        "SELECT COUNT(*) FROM suppression_audit WHERE status = 'pending'"
+    ).fetchone()[0]
+    assert count == 1
 
 
 def make_result(status: str, outcomes: dict[str, TenantOutcome]) -> SuppressionResult:
