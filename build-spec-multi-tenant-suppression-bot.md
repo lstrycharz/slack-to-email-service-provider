@@ -284,11 +284,15 @@ its own domain and credentials; this demo uses one sandbox simulated as two for 
 3. api.slack.com/apps → "Create New App" → "From scratch". Name: `Suppression Bot Dev`.
 4. **Socket Mode**: Settings → Socket Mode → toggle on. Generate an App-Level Token with scope
    `connections:write`. Copy the token (`xapp-...`).
-5. **OAuth & Permissions** → bot token scopes: `channels:history`, `chat:write`,
+5. **Event Subscriptions**: Settings → Event Subscriptions → toggle on (no request URL needed
+   with Socket Mode) → "Subscribe to bot events" → add `message.channels` and
+   `reaction_added` → Save. **Without this step the app connects but receives no events** —
+   scopes grant permission to call APIs; event subscriptions are what make Slack push events.
+6. **OAuth & Permissions** → bot token scopes: `channels:history`, `chat:write`,
    `reactions:read`, `reactions:write`.
-6. Install to workspace. Copy the Bot User OAuth Token (`xoxb-...`).
-7. Invite the bot: `/invite @Suppression Bot Dev` in the channel.
-8. Channel ID: right-click channel → View channel details → bottom.
+7. Install to workspace. Copy the Bot User OAuth Token (`xoxb-...`).
+8. Invite the bot: `/invite @Suppression Bot Dev` in the channel.
+9. Channel ID: right-click channel → View channel details → bottom.
 
 **Test Mailgun account:**
 
