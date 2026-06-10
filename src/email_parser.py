@@ -5,7 +5,11 @@ import re
 # Character-class based (linear-time, no backtracking blowup); bounded lengths
 # per RFC limits; requires a dotted domain — deliberately stricter than
 # email.utils.parseaddr, which accepts strings like "foo@bar".
-_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}")
+# The lookbehind stops matches starting mid-token: without it, a 70-char
+# local part would match as its 64-char SUFFIX — a different address.
+_EMAIL_RE = re.compile(
+    r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}"
+)
 
 # Slack wraps addresses as <mailto:href|label>. Editing a draft around an
 # auto-linked email can leave a STALE href under a correct visible label —
