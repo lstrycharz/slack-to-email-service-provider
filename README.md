@@ -166,14 +166,6 @@ onboarding compliance review rejected a fresh account with no recourse. The pivo
 one config field and one thin client module — which is itself the architecture working as
 intended.
 
-## What I'd build next
-
-- Web dashboard over the audit log
-- Slash command for "is this address suppressed?" lookups
-- Config-driven confirm-before-act mode for high-stakes channels
-- Generic ESP adapter (SendGrid, Postmark) — deliberately not built while there's one provider
-- Per-tenant rate limiting; HRIS/IAM-backed rollback permissions
-
 ## License
 
 MIT
