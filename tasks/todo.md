@@ -33,9 +33,17 @@ Mailgun free account (private API key + sandbox domain name), fill `.env` + `ten
       pending-before-dispatch invariant surviving a mid-flow crash (missing-scope reply
       failure left audit + ESP state consistent).
 
-# Phase 3 — Dispatch depth (NEXT)
-- [ ] Parallel ThreadPoolExecutor dispatch + duration_ms
-- [ ] GET pre-check → was_already_suppressed per tenant
-- [ ] Retry-once-on-5xx; no retry on 4xx
-- [ ] Partial-failure (⚠️) and all-failed (❌) reply tiers exercised end-to-end
-- [ ] Pending→finalize crash-window test
+# Phase 3 — Dispatch depth ✅ COMPLETE
+- [x] Parallel ThreadPoolExecutor dispatch + duration_ms (barrier test proves concurrency)
+- [x] GET pre-check → was_already_suppressed per tenant (None on pre-check failure, proceeds)
+- [x] Retry-once-on-5xx/timeout with backoff; no retry on 4xx
+- [x] Partial-failure (⚠️) and all-failed (❌) tiers covered through dispatcher in core tests
+- [x] Pending→finalize crash-window regression test
+
+# Phase 4 — Rollback (NEXT)
+- [ ] FIRST: metadata live spike (post w/ metadata → fetch via conversations.replies(include_all_metadata=True))
+- [ ] `mailgun_client.remove_suppression()` (DELETE)
+- [ ] `core.process_rollback()`: requester-only, UTC window, idempotency, skip was_already_suppressed≠False
+- [ ] Reaction shell: ❌-only, metadata lookup, ignore non-bot messages
+- [ ] Rollback audit record linked via rollback_of + rollback reply
+- [ ] LIVE: ❌ on a fresh confirmation → removed from Mailgun → rollback audit row
