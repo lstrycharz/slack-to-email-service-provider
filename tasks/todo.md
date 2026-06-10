@@ -51,8 +51,19 @@ Mailgun free account (private API key + sandbox domain name), fill `.env` + `ten
 - [x] BONUS live bug fixed: stale mailto hrefs after draft edits — parser now flattens
       Slack links to visible labels (what the human saw)
 
-# Phase 5 — Hardening (NEXT)
-- [ ] Parser edge cases: unicode, very long inputs, ReDoS-shaped strings, many emails/message
-- [ ] `scripts/healthcheck.py` (auth.test, apps.connections.open, per-tenant Mailgun 404 probe)
-- [ ] `tests/test_integration.py`: full message→confirm and reaction→rollback flows (mocked Slack + respx)
-- [ ] Coverage gap: register_handlers wiring exercised by integration test
+# Phase 5 — Hardening ✅ COMPLETE
+- [x] Parser edge cases pinned: unicode surroundings, non-ASCII rejection, trailing
+      punctuation, multi-email order, ReDoS-shaped + megabyte inputs. REAL BUG fixed
+      red-green: overlong local part no longer matches as truncated 64-char suffix.
+- [x] `scripts/healthcheck.py` — verified live: all healthy (bot token, app token, tenant)
+- [x] `tests/test_integration.py`: full suppress→confirm→react→rollback lifecycle + double
+      reaction + intruder rejection; mocks only at Slack-callable/HTTP boundaries
+- [~] register_handlers Bolt closures stay test-uncovered (would need a faked Bolt dispatch);
+      verified live across Phases 2–4 instead. Coverage 88%, gap = main.py + closures.
+
+# Phase 6 — README + demo (NEXT)
+- [ ] `scripts/demo_report.py` — markdown summary from audit data
+- [ ] README per spec structure (honest status, architecture decisions, quick start)
+- [ ] DEMO.md with video script; record 2–3 min video (user)
+- [ ] Screenshots: Slack thread (have one), Mailgun suppressions page, audit query, log sample
+- [ ] Pre-publish: rotate Mailgun key; decide repo visibility
