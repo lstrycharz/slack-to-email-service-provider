@@ -3,10 +3,22 @@
 import tomllib
 from pathlib import Path
 
+from dotenv import load_dotenv
 from pydantic import ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.schemas import Tenant
+
+
+def load_environment(env_file: Path = Path(".env")) -> None:
+    """Export .env entries into os.environ.
+
+    pydantic-settings reads .env only for Settings' own fields; tenant API
+    keys are looked up via os.environ at dispatch time, so the file must be
+    exported into the process environment too. Real env vars win over file
+    values (load_dotenv does not override).
+    """
+    load_dotenv(env_file)
 
 
 class TenantConfigError(Exception):

@@ -7,7 +7,7 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 from src.audit import AuditLog
-from src.config import Settings, load_tenants
+from src.config import Settings, load_environment, load_tenants
 from src.slack_handlers import register_handlers
 
 
@@ -26,6 +26,7 @@ def configure_logging(level: str) -> None:
 
 
 def main() -> None:
+    load_environment()  # exports tenant API keys from .env into os.environ
     settings = Settings()
     configure_logging(settings.log_level)
     log = structlog.get_logger()

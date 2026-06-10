@@ -1,11 +1,12 @@
 """Tests for config: Settings env loading and the tenants.toml loader."""
 
+import os
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from src.config import Settings, TenantConfigError, load_tenants
+from src.config import Settings, TenantConfigError, load_environment, load_tenants
 from src.schemas import Tenant
 
 REQUIRED_ENV = {
@@ -115,6 +116,18 @@ def test_load_tenants_missing_domain_raises(tmp_path: Path) -> None:
     missing_domain = VALID_TENANTS_TOML.replace('domain = "mg.brand-a.com"\n', "", 1)
     with pytest.raises(TenantConfigError, match="Invalid tenant"):
         load_tenants(write_toml(tmp_path, missing_domain))
+
+
+def test_load_environment_exports_env_file_vars_to_environ(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Tenant API keys live in .env but are read via os.environ — they must
+    # be exported, not just parsed into Settings fields.
+    monkeypatch.delenv("SOME_TENANT_KEY", raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text("SOME_TENANT_KEY=key-value\n", encoding="utf-8")
+    load_environment(env_file)
+    assert os.environ.get("SOME_TENANT_KEY") == "key-value"
 
 
 def test_load_tenants_missing_field_raises(tmp_path: Path) -> None:
