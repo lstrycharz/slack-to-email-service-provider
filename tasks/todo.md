@@ -61,9 +61,12 @@ Mailgun free account (private API key + sandbox domain name), fill `.env` + `ten
 - [~] register_handlers Bolt closures stay test-uncovered (would need a faked Bolt dispatch);
       verified live across Phases 2–4 instead. Coverage 88%, gap = main.py + closures.
 
-# Phase 6 — README + demo (NEXT)
-- [ ] `scripts/demo_report.py` — markdown summary from audit data
-- [ ] README per spec structure (honest status, architecture decisions, quick start)
-- [ ] DEMO.md with video script; record 2–3 min video (user)
-- [ ] Screenshots: Slack thread (have one), Mailgun suppressions page, audit query, log sample
-- [ ] Pre-publish: rotate Mailgun key; decide repo visibility
+# Phase 6 — README + demo ✅ PUBLISHED
+- [x] `scripts/demo_report.py` — sample report committed from real demo data (masked)
+- [x] README: plain-language problem story + technical depth + honest status
+- [x] DEMO.md with full recording script; LICENSE (MIT)
+- [x] Secret sweep: gitleaks over all history + direct fragment grep — clean
+- [x] PUBLIC repo: https://github.com/lstrycharz/slack-to-email-service-provider
+- [ ] USER: record 2–3 min video (script in DEMO.md), paste link into DEMO.md
+- [ ] USER: screenshots into docs/screenshots/ (checklist in DEMO.md)
+- [ ] USER: rotate Mailgun key (passed through chat; not in repo, rotate anyway)
