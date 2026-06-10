@@ -29,6 +29,26 @@ class SuppressionResult(BaseModel):
     outcomes: dict[str, TenantOutcome]
 
 
+class RollbackResult(BaseModel):
+    """Outcome of a ❌-reaction rollback attempt.
+
+    accepted=False means a guard rejected it (unknown id, wrong user,
+    expired window, already rolled back) and nothing was dispatched.
+    skipped_tenants were eligible-looking but had was_already_suppressed
+    True or unknown — removing those could delete a suppression the bot
+    didn't create.
+    """
+
+    original_audit_id: str
+    email: str
+    accepted: bool
+    reject_reason: str | None = None
+    rollback_audit_id: str | None = None
+    status: Literal["success", "partial", "failure"] | None = None
+    outcomes: dict[str, TenantOutcome] | None = None
+    skipped_tenants: list[str] = []
+
+
 class AuditRecord(BaseModel):
     """One row of the suppression audit trail."""
 

@@ -1,6 +1,7 @@
-"""Tests for core.process_message and reply formatting."""
+"""Tests for core.process_message, process_rollback, and reply formatting."""
 
 import sqlite3
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -8,8 +9,13 @@ import pytest
 import respx
 
 from src.audit import AuditLog
-from src.core import build_reply_text, process_message
-from src.schemas import SuppressionResult, Tenant, TenantOutcome
+from src.core import (
+    build_reply_text,
+    build_rollback_reply_text,
+    process_message,
+    process_rollback,
+)
+from src.schemas import RollbackResult, SuppressionResult, Tenant, TenantOutcome
 
 
 @pytest.fixture
@@ -138,3 +144,156 @@ def test_build_reply_text_partial_names_failed_tenant() -> None:
 def test_build_reply_text_failure_says_failed() -> None:
     result = make_result("failure", {"brand_a": TenantOutcome(status="failure")})
     assert "FAILED" in build_reply_text(result, rollback_window_seconds=300)
+
+
+EMAIL = "test+1@example.com"
+REQUESTER = "U123"
+
+
+def seed_add_record(
+    audit: AuditLog,
+    audit_id: str = "orig-1",
+    outcomes: dict[str, TenantOutcome] | None = None,
+) -> None:
+    audit.write_pending(
+        audit_id=audit_id,
+        action="add",
+        email=EMAIL,
+        slack_user_id=REQUESTER,
+        slack_channel_id="C456",
+        slack_message_ts="1717000000.000100",
+    )
+    audit.finalize(
+        audit_id,
+        outcomes
+        or {
+            "brand_a": TenantOutcome(status="success", was_already_suppressed=False),
+            "brand_b": TenantOutcome(status="success", was_already_suppressed=False),
+        },
+    )
+
+
+def rollback(
+    audit: AuditLog,
+    tenants: list[Tenant],
+    audit_id: str = "orig-1",
+    reactor: str = REQUESTER,
+    now: datetime | None = None,
+) -> RollbackResult:
+    return process_rollback(
+        audit_id=audit_id,
+        email=EMAIL,
+        reactor_user_id=reactor,
+        tenants=tenants,
+        audit=audit,
+        rollback_window_seconds=300,
+        now=now,
+    )
+
+
+def mock_remove(domain: str, status_code: int = 200) -> respx.Route:
+    return respx.delete(f"https://api.mailgun.net/v3/{domain}/unsubscribes/{EMAIL}").mock(
+        return_value=httpx.Response(status_code, json={"message": "ok"})
+    )
+
+
+def test_rollback_unknown_audit_id_is_rejected(
+    two_tenants: list[Tenant], audit: AuditLog
+) -> None:
+    result = rollback(audit, two_tenants, audit_id="nope")
+    assert result.accepted is False and "unknown" in str(result.reject_reason)
+
+
+def test_rollback_by_non_requester_is_rejected(
+    two_tenants: list[Tenant], audit: AuditLog
+) -> None:
+    seed_add_record(audit)
+    result = rollback(audit, two_tenants, reactor="U_SOMEONE_ELSE")
+    assert result.accepted is False and "requester" in str(result.reject_reason)
+
+
+def test_rollback_after_window_is_rejected(two_tenants: list[Tenant], audit: AuditLog) -> None:
+    seed_add_record(audit)
+    late = datetime.now(UTC) + timedelta(seconds=400)
+    result = rollback(audit, two_tenants, now=late)
+    assert result.accepted is False and "window" in str(result.reject_reason)
+
+
+@respx.mock
+def test_rollback_twice_is_rejected_second_time(
+    two_tenants: list[Tenant], audit: AuditLog
+) -> None:
+    seed_add_record(audit)
+    mock_remove("mg.brand-a.com")
+    mock_remove("mg.brand-b.com")
+    rollback(audit, two_tenants)
+    result = rollback(audit, two_tenants)
+    assert result.accepted is False and "already" in str(result.reject_reason)
+
+
+@respx.mock
+def test_rollback_success_writes_linked_audit_record(
+    two_tenants: list[Tenant], audit: AuditLog
+) -> None:
+    seed_add_record(audit)
+    mock_remove("mg.brand-a.com")
+    mock_remove("mg.brand-b.com")
+    result = rollback(audit, two_tenants)
+    record = audit.find_rollback_of("orig-1")
+    assert (
+        result.accepted,
+        result.status,
+        record is not None and record.audit_id == result.rollback_audit_id,
+    ) == (True, "success", True)
+
+
+@respx.mock
+def test_rollback_skips_tenants_suppressed_before_the_action(
+    two_tenants: list[Tenant], audit: AuditLog
+) -> None:
+    seed_add_record(
+        audit,
+        outcomes={
+            "brand_a": TenantOutcome(status="success", was_already_suppressed=True),
+            "brand_b": TenantOutcome(status="success", was_already_suppressed=False),
+        },
+    )
+    route_a = mock_remove("mg.brand-a.com")
+    mock_remove("mg.brand-b.com")
+    result = rollback(audit, two_tenants)
+    assert (route_a.called, result.skipped_tenants) == (False, ["brand_a"])
+
+
+def test_rollback_with_nothing_eligible_makes_no_calls(
+    two_tenants: list[Tenant], audit: AuditLog
+) -> None:
+    # was_already_suppressed=None (unknown prior state) must also be skipped:
+    # deleting could remove a suppression the bot didn't create.
+    seed_add_record(
+        audit,
+        outcomes={
+            "brand_a": TenantOutcome(status="success", was_already_suppressed=None),
+            "brand_b": TenantOutcome(status="failure"),
+        },
+    )
+    result = rollback(audit, two_tenants)  # no respx mock: any HTTP call would error
+    assert result.accepted is True and result.outcomes == {}
+
+
+def test_rollback_reply_text_rejected_includes_reason() -> None:
+    result = RollbackResult(
+        original_audit_id="orig-1", email=EMAIL, accepted=False, reject_reason="window expired"
+    )
+    assert "window expired" in build_rollback_reply_text(result)
+
+
+def test_rollback_reply_text_success_includes_rollback_audit_id() -> None:
+    result = RollbackResult(
+        original_audit_id="orig-1",
+        email=EMAIL,
+        accepted=True,
+        rollback_audit_id="rb-9",
+        status="success",
+        outcomes={"brand_b": TenantOutcome(status="success")},
+    )
+    assert "rb-9" in build_rollback_reply_text(result)
