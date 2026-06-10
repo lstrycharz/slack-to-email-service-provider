@@ -69,3 +69,23 @@ def test_finalize_roundtrips_tenant_outcomes(audit: AuditLog) -> None:
 
 def test_get_action_unknown_id_returns_none(audit: AuditLog) -> None:
     assert audit.get_action("nope") is None
+
+
+def test_find_rollback_of_returns_linked_rollback_record(audit: AuditLog) -> None:
+    write_pending(audit, "original-1")
+    audit.write_pending(
+        audit_id="rb-1",
+        action="remove",
+        email=EMAIL,
+        slack_user_id="U123",
+        slack_channel_id="C456",
+        slack_message_ts="1717000001.000200",
+        rollback_of="original-1",
+    )
+    record = audit.find_rollback_of("original-1")
+    assert record is not None and record.audit_id == "rb-1"
+
+
+def test_find_rollback_of_returns_none_when_no_rollback_exists(audit: AuditLog) -> None:
+    write_pending(audit, "original-1")
+    assert audit.find_rollback_of("original-1") is None

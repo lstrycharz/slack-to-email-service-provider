@@ -106,11 +106,22 @@ class AuditLog:
 
     def get_action(self, audit_id: str) -> AuditRecord | None:
         """Fetch one record by id, or None if it doesn't exist."""
+        return self._fetch_one("SELECT * FROM suppression_audit WHERE audit_id = ?", audit_id)
+
+    def find_rollback_of(self, audit_id: str) -> AuditRecord | None:
+        """Fetch the rollback record linked to an action, if one exists.
+
+        Used as the idempotency guard — a second ❌ reaction must not
+        trigger a second rollback.
+        """
+        return self._fetch_one(
+            "SELECT * FROM suppression_audit WHERE rollback_of = ?", audit_id
+        )
+
+    def _fetch_one(self, query: str, param: str) -> AuditRecord | None:
         with closing(self._connect()) as conn:
             conn.row_factory = sqlite3.Row
-            row = conn.execute(
-                "SELECT * FROM suppression_audit WHERE audit_id = ?", (audit_id,)
-            ).fetchone()
+            row = conn.execute(query, (param,)).fetchone()
         if row is None:
             return None
         outcomes: dict[str, TenantOutcome] | None = None

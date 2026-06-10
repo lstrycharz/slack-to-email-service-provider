@@ -7,7 +7,7 @@ import pytest
 import respx
 
 from src.schemas import Tenant
-from src.tenant_dispatch import dispatch_suppression
+from src.tenant_dispatch import dispatch_removal, dispatch_suppression
 
 EMAIL = "test+1@example.com"
 DOMAIN_A = "mg.brand-a.com"
@@ -117,6 +117,35 @@ def test_dispatch_outcomes_carry_duration_ms(two_tenants: list[Tenant]) -> None:
     mock_tenant_ok(DOMAIN_B)
     outcomes = dispatch_suppression(EMAIL, two_tenants)
     assert all(o.duration_ms is not None and o.duration_ms >= 0 for o in outcomes.values())
+
+
+def mock_remove(domain: str, status_code: int = 200) -> respx.Route:
+    return respx.delete(f"https://api.mailgun.net/v3/{domain}/unsubscribes/{EMAIL}").mock(
+        return_value=httpx.Response(status_code, json={"message": "ok"})
+    )
+
+
+@respx.mock
+def test_dispatch_removal_returns_success_outcome_per_tenant(
+    two_tenants: list[Tenant],
+) -> None:
+    mock_remove(DOMAIN_A)
+    mock_remove(DOMAIN_B)
+    outcomes = dispatch_removal(EMAIL, two_tenants)
+    assert [(name, o.status) for name, o in outcomes.items()] == [
+        ("brand_a", "success"),
+        ("brand_b", "success"),
+    ]
+
+
+@respx.mock
+def test_dispatch_removal_records_failure_without_stopping_other_tenants(
+    two_tenants: list[Tenant],
+) -> None:
+    mock_remove(DOMAIN_A, status_code=401)
+    mock_remove(DOMAIN_B)
+    outcomes = dispatch_removal(EMAIL, two_tenants, backoff_seconds=0)
+    assert (outcomes["brand_a"].status, outcomes["brand_b"].status) == ("failure", "success")
 
 
 @respx.mock

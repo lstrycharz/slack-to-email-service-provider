@@ -9,7 +9,12 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from src.mailgun_client import MailgunError, add_suppression, check_suppression
+from src.mailgun_client import (
+    MailgunError,
+    add_suppression,
+    check_suppression,
+    remove_suppression,
+)
 from src.schemas import Tenant, TenantOutcome
 
 
@@ -30,6 +35,46 @@ def dispatch_suppression(
             for tenant in tenants
         }
         return {name: future.result() for name, future in futures.items()}
+
+
+def dispatch_removal(
+    email: str, tenants: list[Tenant], timeout: float = 10.0, backoff_seconds: float = 2.0
+) -> dict[str, TenantOutcome]:
+    """Remove the email from every given tenant's suppression list, in parallel.
+
+    Rollback path: the caller is responsible for passing only eligible
+    tenants (original add succeeded AND was_already_suppressed is False).
+
+    Returns:
+        Outcomes keyed by tenant name, in tenant order.
+    """
+    with ThreadPoolExecutor(max_workers=max(len(tenants), 1)) as pool:
+        futures = {
+            tenant.name: pool.submit(_remove_one, email, tenant, timeout, backoff_seconds)
+            for tenant in tenants
+        }
+        return {name: future.result() for name, future in futures.items()}
+
+
+def _remove_one(
+    email: str, tenant: Tenant, timeout: float, backoff_seconds: float
+) -> TenantOutcome:
+    started = time.perf_counter()
+    api_key = os.environ.get(tenant.api_key_env_var)
+    if not api_key:
+        outcome = TenantOutcome(
+            status="failure", error_message=f"env var {tenant.api_key_env_var} is not set"
+        )
+    else:
+        try:
+            remove_suppression(
+                api_key, tenant.domain, email, timeout=timeout, backoff_seconds=backoff_seconds
+            )
+            outcome = TenantOutcome(status="success")
+        except MailgunError as exc:
+            outcome = TenantOutcome(status="failure", error_message=str(exc))
+    outcome.duration_ms = int((time.perf_counter() - started) * 1000)
+    return outcome
 
 
 def _suppress_one(
