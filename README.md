@@ -39,14 +39,8 @@ Someone posts the email address in a designated Slack channel. About **one secon
 The minutes-long, error-prone, unprovable manual chore becomes a one-second, recorded, reversible
 one. That's the whole idea.
 
-## See it work
-
-A real run from the test workspace — a request posted in Slack, confirmed, and rolled back:
-
-> 📹 **[2-minute demo video and walkthrough → DEMO.md](DEMO.md)**
-
-And a real report generated from the audit log (only masked data — the system never stores
-plaintext email addresses): **[sample audit report →](docs/sample-audit-report.md)**
+A real report generated from the audit log of live test runs (only masked data — the system
+never stores plaintext email addresses): **[sample audit report →](docs/sample-audit-report.md)**
 
 ---
 
