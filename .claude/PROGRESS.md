@@ -9,12 +9,14 @@
   100% cov, mypy strict clean) — commit 12899ab
 
 ## In Progress
-- Phase 2 COMPLETE incl. live exit criterion (2026-06-10): full Slack→Mailgun loop
-  demonstrated in test workspace; audit bb923bbc-... matches Slack reply; Mailgun GET 200.
-  Setup lessons captured (Event Subscriptions step, chat:write vs calls:write mis-click,
-  .env export bug fixed red-green).
-- CAUTION: confirmation replies promise ❌ rollback, but the reaction handler is Phase 4 —
-  not yet implemented. Until then a ❌ reaction does nothing.
+- Phases 2, 3, AND 4 COMPLETE including live criteria (2026-06-10): full suppress + rollback
+  loop demonstrated in the test workspace (add ecc402bd → ❌ reaction → rollback ac4847a3,
+  Mailgun GET 404 confirms removal). Metadata spike passed; parallel dispatch proven by
+  barrier test; live parser bug (stale mailto hrefs) fixed red-green.
+- Next: Phase 5 hardening (see tasks/todo.md), then Phase 6 README/demo video.
+- Demo-prep note: sandbox suppression list has leftover synthetic entries
+  (test1, test3, est2@gmail.com) — clean or keep as demo data. Mailgun key should be
+  ROTATED before any public demo (passed through chat in plaintext).
 
 ## Blocked
 - Phase 2 live exit criterion needs the rest of Phase 0 (user, manual): Slack workspace

@@ -40,10 +40,19 @@ Mailgun free account (private API key + sandbox domain name), fill `.env` + `ten
 - [x] Partial-failure (⚠️) and all-failed (❌) tiers covered through dispatcher in core tests
 - [x] Pending→finalize crash-window regression test
 
-# Phase 4 — Rollback (NEXT)
-- [ ] FIRST: metadata live spike (post w/ metadata → fetch via conversations.replies(include_all_metadata=True))
-- [ ] `mailgun_client.remove_suppression()` (DELETE)
-- [ ] `core.process_rollback()`: requester-only, UTC window, idempotency, skip was_already_suppressed≠False
-- [ ] Reaction shell: ❌-only, metadata lookup, ignore non-bot messages
-- [ ] Rollback audit record linked via rollback_of + rollback reply
-- [ ] LIVE: ❌ on a fresh confirmation → removed from Mailgun → rollback audit row
+# Phase 4 — Rollback ✅ COMPLETE
+- [x] Metadata live spike PASSED (payload round-trips; fallback not needed)
+- [x] `mailgun_client.remove_suppression()` (DELETE, same retry policy)
+- [x] `core.process_rollback()`: four guards (unknown id / requester-only / idempotent / UTC window), skips was_already_suppressed≠False
+- [x] Reaction shell: ❌-only, metadata lookup, ignores non-confirmation messages
+- [x] Rollback audit record linked via rollback_of + rollback reply
+- [x] LIVE 2026-06-10: ❌ reaction → removed from Mailgun (GET 404) → linked rollback row
+      (add ecc402bd → rollback ac4847a3, 16s apart; user ran the loop twice)
+- [x] BONUS live bug fixed: stale mailto hrefs after draft edits — parser now flattens
+      Slack links to visible labels (what the human saw)
+
+# Phase 5 — Hardening (NEXT)
+- [ ] Parser edge cases: unicode, very long inputs, ReDoS-shaped strings, many emails/message
+- [ ] `scripts/healthcheck.py` (auth.test, apps.connections.open, per-tenant Mailgun 404 probe)
+- [ ] `tests/test_integration.py`: full message→confirm and reaction→rollback flows (mocked Slack + respx)
+- [ ] Coverage gap: register_handlers wiring exercised by integration test
