@@ -1,4 +1,4 @@
-"""Tests for the message shell — event filtering and reply posting (thin by design)."""
+"""Tests for the message and reaction shells — event filtering and reply posting."""
 
 from pathlib import Path
 from typing import Any
@@ -8,10 +8,12 @@ import pytest
 import respx
 
 from src.audit import AuditLog
-from src.schemas import Tenant
-from src.slack_handlers import handle_message_event
+from src.schemas import Tenant, TenantOutcome
+from src.slack_handlers import handle_message_event, handle_reaction_event
 
 CHANNEL = "C456"
+EMAIL = "test+1@example.com"
+REQUESTER = "U123"
 
 
 class RecordingPoster:
@@ -117,3 +119,118 @@ def test_message_without_email_posts_nothing(
 ) -> None:
     handle(make_event(text="hello team"), poster, two_tenants, audit)
     assert poster.replies == []
+
+
+BOT_MESSAGE = {
+    "ts": "1717000010.000300",
+    "thread_ts": "1717000000.000100",
+    "metadata": {
+        "event_type": "suppression_action",
+        "event_payload": {"audit_id": "orig-1", "email": EMAIL},
+    },
+}
+
+
+def seed_add_record(audit: AuditLog) -> None:
+    audit.write_pending(
+        audit_id="orig-1",
+        action="add",
+        email=EMAIL,
+        slack_user_id=REQUESTER,
+        slack_channel_id=CHANNEL,
+        slack_message_ts="1717000000.000100",
+    )
+    audit.finalize(
+        "orig-1",
+        {"brand_a": TenantOutcome(status="success", was_already_suppressed=False)},
+    )
+
+
+def make_reaction_event(**overrides: Any) -> dict[str, Any]:
+    event: dict[str, Any] = {
+        "reaction": "x",
+        "user": REQUESTER,
+        "item": {"channel": CHANNEL, "ts": BOT_MESSAGE["ts"]},
+    }
+    event.update(overrides)
+    return event
+
+
+class RecordingFetcher:
+    """Stands in for conversations.replies; records lookups."""
+
+    def __init__(self, message: dict[str, Any] | None) -> None:
+        self.message = message
+        self.calls: list[tuple[str, str]] = []
+
+    def __call__(self, channel: str, ts: str) -> dict[str, Any] | None:
+        self.calls.append((channel, ts))
+        return self.message
+
+
+def handle_reaction(
+    event: dict[str, Any],
+    fetcher: RecordingFetcher,
+    poster: RecordingPoster,
+    tenants: list[Tenant],
+    audit: AuditLog,
+) -> None:
+    handle_reaction_event(
+        event,
+        fetch_message=fetcher,
+        post_reply=poster,
+        channel_id=CHANNEL,
+        rollback_window_seconds=300,
+        tenants=tenants,
+        audit=audit,
+    )
+
+
+def test_reaction_other_emoji_is_ignored(
+    two_tenants: list[Tenant], audit: AuditLog, poster: RecordingPoster
+) -> None:
+    fetcher = RecordingFetcher(BOT_MESSAGE)
+    handle_reaction(make_reaction_event(reaction="thumbsup"), fetcher, poster, two_tenants, audit)
+    assert (fetcher.calls, poster.replies) == ([], [])
+
+
+def test_reaction_in_other_channel_is_ignored(
+    two_tenants: list[Tenant], audit: AuditLog, poster: RecordingPoster
+) -> None:
+    fetcher = RecordingFetcher(BOT_MESSAGE)
+    event = make_reaction_event(item={"channel": "C_OTHER", "ts": BOT_MESSAGE["ts"]})
+    handle_reaction(event, fetcher, poster, two_tenants, audit)
+    assert (fetcher.calls, poster.replies) == ([], [])
+
+
+def test_reaction_on_message_without_suppression_metadata_is_ignored(
+    two_tenants: list[Tenant], audit: AuditLog, poster: RecordingPoster
+) -> None:
+    fetcher = RecordingFetcher({"ts": "1.2", "text": "a normal human reply"})
+    handle_reaction(make_reaction_event(), fetcher, poster, two_tenants, audit)
+    assert poster.replies == []
+
+
+@respx.mock
+def test_reaction_on_confirmation_rolls_back_and_replies_in_thread(
+    two_tenants: list[Tenant], audit: AuditLog, poster: RecordingPoster
+) -> None:
+    seed_add_record(audit)
+    route = respx.delete(
+        f"https://api.mailgun.net/v3/mg.brand-a.com/unsubscribes/{EMAIL}"
+    ).mock(return_value=httpx.Response(200, json={"message": "ok"}))
+    handle_reaction(make_reaction_event(), RecordingFetcher(BOT_MESSAGE), poster, two_tenants, audit)
+    assert (
+        route.called,
+        poster.replies[0]["thread_ts"],
+        "Rolled back" in poster.replies[0]["text"],
+    ) == (True, "1717000000.000100", True)
+
+
+def test_reaction_by_non_requester_posts_rejection(
+    two_tenants: list[Tenant], audit: AuditLog, poster: RecordingPoster
+) -> None:
+    seed_add_record(audit)
+    event = make_reaction_event(user="U_SOMEONE_ELSE")
+    handle_reaction(event, RecordingFetcher(BOT_MESSAGE), poster, two_tenants, audit)
+    assert "rejected" in poster.replies[0]["text"]
